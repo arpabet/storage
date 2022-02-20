@@ -342,6 +342,7 @@ type ProtoEntry struct {
 var StorageClass = reflect.TypeOf((*Storage)(nil)).Elem()
 type Storage interface {
 	beans.DisposableBean
+	beans.NamedBean
 
 	Get() *GetOperation
 
