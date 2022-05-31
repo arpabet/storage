@@ -19,6 +19,7 @@
 package storage
 
 import (
+	"encoding/binary"
 	"go.arpabet.com/beans"
 	"fmt"
 	"github.com/golang/protobuf/proto"
@@ -31,7 +32,7 @@ const NoTTL = 0
 var ErrNotFound = os.ErrNotExist
 
 type GetOperation struct {
-	Storage
+	Storage          // should be initialized
 	bucket   []byte
 	key      []byte
 	ttlPtr     *int
@@ -98,9 +99,16 @@ func (t *GetOperation) ToString() (string, error) {
 	return string(content), nil
 }
 
+func (t *GetOperation) ToCounter() (uint64, error) {
+	content, err :=  t.GetRaw(t.bucket, t.key, t.ttlPtr, t.versionPtr, t.required)
+	if err != nil || len(content) < 8 {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(content), nil
+}
 
 type SetOperation struct {
-	Storage
+	Storage            // should be initialized
 	bucket     []byte
 	key        []byte
 	ttlSeconds int
@@ -138,6 +146,12 @@ func (t *SetOperation) String(value string) error {
 	return t.Storage.SetRaw(t.bucket, t.key, []byte(value), t.ttlSeconds)
 }
 
+func (t *SetOperation) Counter(value uint64) error {
+	slice := make([]byte, 8)
+	binary.BigEndian.PutUint64(slice, value)
+	return t.Storage.SetRaw(t.bucket, t.key, slice, t.ttlSeconds)
+}
+
 func (t *SetOperation) Proto(msg proto.Message) error {
 	bin, err := proto.Marshal(msg)
 	if err != nil {
@@ -148,7 +162,7 @@ func (t *SetOperation) Proto(msg proto.Message) error {
 
 
 type CompareAndSetOperation struct {
-	Storage
+	Storage            // should be initialized
 	bucket     []byte
 	key        []byte
 	ttlSeconds int
@@ -192,6 +206,12 @@ func (t *CompareAndSetOperation) String(value string) (bool, error) {
 	return t.Storage.CompareAndSetRaw(t.bucket, t.key, []byte(value), t.ttlSeconds, t.version)
 }
 
+func (t *CompareAndSetOperation) Counter(value uint64) (bool, error) {
+	slice := make([]byte, 8)
+	binary.BigEndian.PutUint64(slice, value)
+	return t.Storage.CompareAndSetRaw(t.bucket, t.key, slice, t.ttlSeconds, t.version)
+}
+
 func (t *CompareAndSetOperation) Proto(msg proto.Message) (bool, error) {
 	bin, err := proto.Marshal(msg)
 	if err != nil {
@@ -200,8 +220,68 @@ func (t *CompareAndSetOperation) Proto(msg proto.Message) (bool, error) {
 	return t.Storage.CompareAndSetRaw(t.bucket, t.key, bin, t.ttlSeconds, t.version)
 }
 
+
+type IncrementOperation struct {
+	Storage            // should be initialized
+	bucket     []byte
+	key        []byte
+	ttlSeconds int
+	version    int64
+	initial    uint64
+	delta      uint64   // should be initialized by 1
+}
+
+func (t *IncrementOperation) Bucket(bucket []byte) *IncrementOperation {
+	t.bucket = bucket
+	return t
+}
+
+func (t *IncrementOperation) ByKey(formatKey string, args... interface{}) *IncrementOperation {
+	if len(args) > 0 {
+		t.key = []byte(fmt.Sprintf(formatKey, args...))
+	} else {
+		t.key = []byte(formatKey)
+	}
+	return t
+}
+
+func (t *IncrementOperation) ByRawKey(key []byte) *IncrementOperation {
+	t.key = key
+	return t
+}
+
+func (t *IncrementOperation) WithTtl(ttlSeconds int) *IncrementOperation {
+	t.ttlSeconds = ttlSeconds
+	return t
+}
+
+func (t *IncrementOperation) WithInitialValue(initial uint64) *IncrementOperation {
+	t.initial = initial
+	return t
+}
+
+func (t *IncrementOperation) WithDelta(delta uint64) *IncrementOperation {
+	t.delta = delta
+	return t
+}
+
+func (t *IncrementOperation) Do() (prev uint64, err error) {
+	err = t.Storage.DoInTransaction(t.bucket, t.key, func(entry *RawEntry) bool {
+		counter := t.initial
+		if len(entry.Value) >= 8 {
+			counter = binary.BigEndian.Uint64(entry.Value)
+		}
+		prev = counter
+		counter += t.delta
+		entry.Value = make([]byte, 8)
+		binary.BigEndian.PutUint64(entry.Value, counter)
+		return true
+	})
+	return
+}
+
 type RemoveOperation struct {
-	Storage
+	Storage         // should be initialized
 	bucket []byte
 	key    []byte
 }
@@ -230,7 +310,7 @@ func (t *RemoveOperation) Do() error {
 }
 
 type EnumerateOperation struct {
-	Storage
+	Storage              // should be initialized
 	prefixBin []byte
 	seekBin   []byte
 	batchSize int
@@ -348,6 +428,9 @@ type Storage interface {
 
 	Set() *SetOperation
 
+	// equivalent of i++ operation, always returns previous value
+	Increment() *IncrementOperation
+
 	CompareAndSet() *CompareAndSetOperation
 
 	Remove() *RemoveOperation
@@ -359,6 +442,8 @@ type Storage interface {
 	SetRaw(bucket, key, value []byte, ttlSeconds int) error
 
 	CompareAndSetRaw(bucket, key, value []byte, ttlSeconds int, version int64) (bool, error)
+
+	DoInTransaction(prefix, key []byte, cb func(entry *RawEntry) bool) error
 
 	RemoveRaw(bucket, key []byte) error
 
