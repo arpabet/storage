@@ -227,8 +227,8 @@ type IncrementOperation struct {
 	key        []byte
 	ttlSeconds int
 	version    int64
-	initial    uint64
-	delta      uint64   // should be initialized by 1
+	Initial    uint64
+	Delta      uint64   // should be initialized by 1
 }
 
 func (t *IncrementOperation) Bucket(bucket []byte) *IncrementOperation {
@@ -256,23 +256,23 @@ func (t *IncrementOperation) WithTtl(ttlSeconds int) *IncrementOperation {
 }
 
 func (t *IncrementOperation) WithInitialValue(initial uint64) *IncrementOperation {
-	t.initial = initial
+	t.Initial = initial
 	return t
 }
 
 func (t *IncrementOperation) WithDelta(delta uint64) *IncrementOperation {
-	t.delta = delta
+	t.Delta = delta
 	return t
 }
 
 func (t *IncrementOperation) Do() (prev uint64, err error) {
 	err = t.Storage.DoInTransaction(t.bucket, t.key, func(entry *RawEntry) bool {
-		counter := t.initial
+		counter := t.Initial
 		if len(entry.Value) >= 8 {
 			counter = binary.BigEndian.Uint64(entry.Value)
 		}
 		prev = counter
-		counter += t.delta
+		counter += t.Delta
 		entry.Value = make([]byte, 8)
 		binary.BigEndian.PutUint64(entry.Value, counter)
 		return true
