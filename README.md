@@ -8,4 +8,4 @@ Supported back-ends:
 * bbolt
 * pebbledb (like rocksdb)
 
-
+The goal of creation this repository is to have single interface for all storage systems supported in one place.
