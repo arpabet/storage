@@ -34,6 +34,7 @@ import (
 
 const NoTTL = 0
 var ErrNotFound = os.ErrNotExist
+var DefaultBatchSize = 128
 
 type GetOperation struct {
 	Storage          // should be initialized
@@ -296,9 +297,6 @@ func (t *EnumerateOperation) ByPrefix(formatPrefix string, args... interface{}) 
 	} else {
 		t.prefixBin = []byte(formatPrefix)
 	}
-	if t.seekBin == nil {
-		t.seekBin = t.prefixBin
-	}
 	return t
 }
 
@@ -328,7 +326,10 @@ func (t *EnumerateOperation) OnlyKeys() *EnumerateOperation {
 
 func (t *EnumerateOperation) Do(cb func(*RawEntry) bool) error {
 	if t.batchSize <= 0 {
-		t.batchSize = 1
+		t.batchSize = DefaultBatchSize
+	}
+	if t.seekBin == nil {
+		t.seekBin = t.prefixBin
 	}
 	return t.Storage.EnumerateRaw(t.prefixBin, t.seekBin, t.batchSize, t.onlyKeys, cb)
 }
