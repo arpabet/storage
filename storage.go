@@ -37,7 +37,6 @@ var ErrNotFound = os.ErrNotExist
 
 type GetOperation struct {
 	Storage          // should be initialized
-	bucket   []byte
 	key      []byte
 	ttlPtr     *int
 	versionPtr *int64
@@ -46,11 +45,6 @@ type GetOperation struct {
 
 func (t *GetOperation) Required() *GetOperation {
 	t.required = true
-	return t
-}
-
-func (t *GetOperation) Bucket(bucket []byte) *GetOperation {
-	t.bucket = bucket
 	return t
 }
 
@@ -79,7 +73,7 @@ func (t *GetOperation) FetchVersion(ptr *int64) *GetOperation {
 }
 
 func (t *GetOperation) ToProto(container proto.Message) error {
-	content, err := t.GetRaw(t.bucket, t.key, t.ttlPtr, t.versionPtr, t.required)
+	content, err := t.GetRaw(t.key, t.ttlPtr, t.versionPtr, t.required)
 	if err != nil {
 		return err
 	}
@@ -92,11 +86,11 @@ func (t *GetOperation) ToProto(container proto.Message) error {
 }
 
 func (t *GetOperation) ToBinary() ([]byte, error) {
-	return t.GetRaw(t.bucket, t.key, t.ttlPtr, t.versionPtr, t.required)
+	return t.GetRaw(t.key, t.ttlPtr, t.versionPtr, t.required)
 }
 
 func (t *GetOperation) ToString() (string, error) {
-	content, err :=  t.GetRaw(t.bucket, t.key, t.ttlPtr, t.versionPtr, t.required)
+	content, err :=  t.GetRaw(t.key, t.ttlPtr, t.versionPtr, t.required)
 	if err != nil || content == nil {
 		return "", err
 	}
@@ -104,7 +98,7 @@ func (t *GetOperation) ToString() (string, error) {
 }
 
 func (t *GetOperation) ToCounter() (uint64, error) {
-	content, err :=  t.GetRaw(t.bucket, t.key, t.ttlPtr, t.versionPtr, t.required)
+	content, err :=  t.GetRaw(t.key, t.ttlPtr, t.versionPtr, t.required)
 	if err != nil || len(content) < 8 {
 		return 0, err
 	}
@@ -113,14 +107,8 @@ func (t *GetOperation) ToCounter() (uint64, error) {
 
 type SetOperation struct {
 	Storage            // should be initialized
-	bucket     []byte
 	key        []byte
 	ttlSeconds int
-}
-
-func (t *SetOperation) Bucket(bucket []byte) *SetOperation {
-	t.bucket = bucket
-	return t
 }
 
 func (t *SetOperation) ByKey(formatKey string, args... interface{}) *SetOperation {
@@ -143,17 +131,17 @@ func (t *SetOperation) WithTtl(ttlSeconds int) *SetOperation {
 }
 
 func (t *SetOperation) Binary(value []byte) error {
-	return t.Storage.SetRaw(t.bucket, t.key, value, t.ttlSeconds)
+	return t.Storage.SetRaw(t.key, value, t.ttlSeconds)
 }
 
 func (t *SetOperation) String(value string) error {
-	return t.Storage.SetRaw(t.bucket, t.key, []byte(value), t.ttlSeconds)
+	return t.Storage.SetRaw(t.key, []byte(value), t.ttlSeconds)
 }
 
 func (t *SetOperation) Counter(value uint64) error {
 	slice := make([]byte, 8)
 	binary.BigEndian.PutUint64(slice, value)
-	return t.Storage.SetRaw(t.bucket, t.key, slice, t.ttlSeconds)
+	return t.Storage.SetRaw(t.key, slice, t.ttlSeconds)
 }
 
 func (t *SetOperation) Proto(msg proto.Message) error {
@@ -161,21 +149,15 @@ func (t *SetOperation) Proto(msg proto.Message) error {
 	if err != nil {
 		return err
 	}
-	return t.Storage.SetRaw(t.bucket, t.key, bin, t.ttlSeconds)
+	return t.Storage.SetRaw(t.key, bin, t.ttlSeconds)
 }
 
 
 type CompareAndSetOperation struct {
 	Storage            // should be initialized
-	bucket     []byte
 	key        []byte
 	ttlSeconds int
 	version    int64
-}
-
-func (t *CompareAndSetOperation) Bucket(bucket []byte) *CompareAndSetOperation {
-	t.bucket = bucket
-	return t
 }
 
 func (t *CompareAndSetOperation) ByKey(formatKey string, args... interface{}) *CompareAndSetOperation {
@@ -203,17 +185,17 @@ func (t *CompareAndSetOperation) WithVersion(version int64) *CompareAndSetOperat
 }
 
 func (t *CompareAndSetOperation) Binary(value []byte) (bool, error) {
-	return t.Storage.CompareAndSetRaw(t.bucket, t.key, value, t.ttlSeconds, t.version)
+	return t.Storage.CompareAndSetRaw(t.key, value, t.ttlSeconds, t.version)
 }
 
 func (t *CompareAndSetOperation) String(value string) (bool, error) {
-	return t.Storage.CompareAndSetRaw(t.bucket, t.key, []byte(value), t.ttlSeconds, t.version)
+	return t.Storage.CompareAndSetRaw(t.key, []byte(value), t.ttlSeconds, t.version)
 }
 
 func (t *CompareAndSetOperation) Counter(value uint64) (bool, error) {
 	slice := make([]byte, 8)
 	binary.BigEndian.PutUint64(slice, value)
-	return t.Storage.CompareAndSetRaw(t.bucket, t.key, slice, t.ttlSeconds, t.version)
+	return t.Storage.CompareAndSetRaw(t.key, slice, t.ttlSeconds, t.version)
 }
 
 func (t *CompareAndSetOperation) Proto(msg proto.Message) (bool, error) {
@@ -221,23 +203,16 @@ func (t *CompareAndSetOperation) Proto(msg proto.Message) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return t.Storage.CompareAndSetRaw(t.bucket, t.key, bin, t.ttlSeconds, t.version)
+	return t.Storage.CompareAndSetRaw(t.key, bin, t.ttlSeconds, t.version)
 }
-
 
 type IncrementOperation struct {
 	Storage            // should be initialized
-	bucket     []byte
 	key        []byte
 	ttlSeconds int
 	version    int64
 	Initial    uint64
 	Delta      uint64   // should be initialized by 1
-}
-
-func (t *IncrementOperation) Bucket(bucket []byte) *IncrementOperation {
-	t.bucket = bucket
-	return t
 }
 
 func (t *IncrementOperation) ByKey(formatKey string, args... interface{}) *IncrementOperation {
@@ -270,7 +245,7 @@ func (t *IncrementOperation) WithDelta(delta uint64) *IncrementOperation {
 }
 
 func (t *IncrementOperation) Do() (prev uint64, err error) {
-	err = t.Storage.DoInTransaction(t.bucket, t.key, func(entry *RawEntry) bool {
+	err = t.Storage.DoInTransaction(t.key, func(entry *RawEntry) bool {
 		counter := t.Initial
 		if len(entry.Value) >= 8 {
 			counter = binary.BigEndian.Uint64(entry.Value)
@@ -286,13 +261,7 @@ func (t *IncrementOperation) Do() (prev uint64, err error) {
 
 type RemoveOperation struct {
 	Storage         // should be initialized
-	bucket []byte
 	key    []byte
-}
-
-func (t *RemoveOperation) Bucket(bucket []byte) *RemoveOperation {
-	t.bucket = bucket
-	return t
 }
 
 func (t *RemoveOperation) ByKey(formatKey string, args... interface{}) *RemoveOperation {
@@ -310,7 +279,7 @@ func (t *RemoveOperation) ByRawKey(key []byte) *RemoveOperation {
 }
 
 func (t *RemoveOperation) Do() error {
-	return t.Storage.RemoveRaw(t.bucket, t.key)
+	return t.Storage.RemoveRaw(t.key)
 }
 
 type EnumerateOperation struct {
@@ -319,11 +288,6 @@ type EnumerateOperation struct {
 	seekBin   []byte
 	batchSize int
 	onlyKeys bool
-}
-
-func (t *EnumerateOperation) Bucket(bucket []byte) *EnumerateOperation {
-	t.prefixBin = bucket
-	return t
 }
 
 func (t *EnumerateOperation) ByPrefix(formatPrefix string, args... interface{}) *EnumerateOperation {
@@ -441,19 +405,19 @@ type Storage interface {
 
 	Enumerate() *EnumerateOperation
 
-	GetRaw(bucket, key []byte, ttlPtr *int, versionPtr *int64, required bool) ([]byte, error)
+	GetRaw(key []byte, ttlPtr *int, versionPtr *int64, required bool) ([]byte, error)
 
-	SetRaw(bucket, key, value []byte, ttlSeconds int) error
+	SetRaw(key, value []byte, ttlSeconds int) error
 
-	CompareAndSetRaw(bucket, key, value []byte, ttlSeconds int, version int64) (bool, error)
+	CompareAndSetRaw(key, value []byte, ttlSeconds int, version int64) (bool, error)
 
-	DoInTransaction(prefix, key []byte, cb func(entry *RawEntry) bool) error
+	DoInTransaction(key []byte, cb func(entry *RawEntry) bool) error
 
-	RemoveRaw(bucket, key []byte) error
+	RemoveRaw(key []byte) error
 
-	EnumerateRaw(bucket, seek []byte, batchSize int, onlyKeys bool, cb func(*RawEntry) bool)  error
+	EnumerateRaw(prefix, seek []byte, batchSize int, onlyKeys bool, cb func(*RawEntry) bool)  error
 
-	FetchKeysRaw(bucket []byte, batchSize int) ([][]byte, error)
+	FetchKeysRaw(prefix []byte, batchSize int) ([][]byte, error)
 }
 
 var ManagedStorageClass = reflect.TypeOf((*ManagedStorage)(nil)).Elem()
