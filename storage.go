@@ -421,7 +421,6 @@ type Storage interface {
 
 	EnumerateRaw(prefix, seek []byte, batchSize int, onlyKeys bool, cb func(*RawEntry) bool)  error
 
-	FetchKeysRaw(prefix []byte, batchSize int) ([][]byte, error)
 }
 
 var ManagedStorageClass = reflect.TypeOf((*ManagedStorage)(nil)).Elem()
