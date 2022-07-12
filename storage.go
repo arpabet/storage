@@ -34,7 +34,7 @@ import (
 
 const NoTTL = 0
 var ErrNotFound = os.ErrNotExist
-var DefaultBatchSize = 128
+var DefaultBatchSize = 100
 
 type GetOperation struct {
 	Storage          // should be initialized
@@ -336,7 +336,10 @@ func (t *EnumerateOperation) Do(cb func(*RawEntry) bool) error {
 
 func (t *EnumerateOperation) DoProto(factory func() proto.Message, cb func(*ProtoEntry) bool) error {
 	if t.batchSize <= 0 {
-		t.batchSize = 1
+		t.batchSize = DefaultBatchSize
+	}
+	if t.seekBin == nil {
+		t.seekBin = t.prefixBin
 	}
 	var marshalErr error
 	err := t.Storage.EnumerateRaw(t.prefixBin, t.seekBin, t.batchSize, t.onlyKeys, func(raw *RawEntry) bool {
