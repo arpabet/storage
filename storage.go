@@ -8,7 +8,7 @@ import (
 	"encoding/binary"
 	"go.arpabet.com/beans"
 	"fmt"
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"os"
 	"reflect"
@@ -61,7 +61,6 @@ func (t *GetOperation) ToProto(container proto.Message) error {
 		return err
 	}
 	if content == nil {
-		container.Reset()
 		return nil
 	} else {
 		return proto.Unmarshal(content, container)
