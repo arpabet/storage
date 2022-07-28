@@ -21,8 +21,6 @@ var DefaultBatchSize = 100
 type GetOperation struct {
 	Storage          // should be initialized
 	key      []byte
-	ttlPtr     *int
-	versionPtr *int64
 	required bool
 }
 
@@ -45,34 +43,26 @@ func (t *GetOperation) ByRawKey(key []byte) *GetOperation {
 	return t
 }
 
-func (t *GetOperation) FetchTtl(ttl *int) *GetOperation {
-	t.ttlPtr = ttl
-	return t
-}
-
-func (t *GetOperation) FetchVersion(ptr *int64) *GetOperation {
-	t.versionPtr = ptr
-	return t
-}
-
 func (t *GetOperation) ToProto(container proto.Message) error {
-	content, err := t.GetRaw(t.key, t.ttlPtr, t.versionPtr, t.required)
-	if err != nil {
+	var ttl int
+	var version int64
+	value, err := t.GetRaw(t.key, &ttl, &version, t.required)
+	if err != nil || value == nil {
 		return err
 	}
-	if content == nil {
-		return nil
-	} else {
-		return proto.Unmarshal(content, container)
-	}
+	return proto.Unmarshal(value, container)
 }
 
 func (t *GetOperation) ToBinary() ([]byte, error) {
-	return t.GetRaw(t.key, t.ttlPtr, t.versionPtr, t.required)
+	var ttl int
+	var version int64
+	return t.GetRaw(t.key, &ttl, &version, t.required)
 }
 
 func (t *GetOperation) ToString() (string, error) {
-	content, err :=  t.GetRaw(t.key, t.ttlPtr, t.versionPtr, t.required)
+	var ttl int
+	var version int64
+	content, err :=  t.GetRaw(t.key, &ttl, &version, t.required)
 	if err != nil || content == nil {
 		return "", err
 	}
@@ -80,11 +70,32 @@ func (t *GetOperation) ToString() (string, error) {
 }
 
 func (t *GetOperation) ToCounter() (uint64, error) {
-	content, err :=  t.GetRaw(t.key, t.ttlPtr, t.versionPtr, t.required)
+	var ttl int
+	var version int64
+	content, err :=  t.GetRaw(t.key, &ttl, &version, t.required)
 	if err != nil || len(content) < 8 {
 		return 0, err
 	}
 	return binary.BigEndian.Uint64(content), nil
+}
+
+func (t *GetOperation) ToEntry() (entry RawEntry, err error) {
+	entry.Key = t.key
+	entry.Value, err = t.GetRaw(t.key, &entry.Ttl, &entry.Version, t.required)
+	return
+}
+
+func (t *GetOperation) ToProtoEntry(factory func() proto.Message) (entry ProtoEntry, err error) {
+	entry.Key = t.key
+	var value []byte
+	if value, err = t.GetRaw(t.key, &entry.Ttl, &entry.Version, t.required); err != nil {
+		return
+	}
+	if value != nil {
+		entry.Value = factory()
+		err = proto.Unmarshal(value, entry.Value)
+	}
+	return
 }
 
 type SetOperation struct {
